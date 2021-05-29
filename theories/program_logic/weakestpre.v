@@ -224,7 +224,7 @@ Lemma parwp_unfold id E m Φ :
 Proof. rewrite parwp_eq. apply (fixpoint_unfold (parwp_pre id)). Qed.
 
 Lemma wp_sswp id E m Φ :
-  WP m @ id; E {{ Φ }} ⊣⊢ SSWP m @ id; E {{m', wp id E m' Φ}}.
+  WP m @ id; E {{ Φ }} ⊣⊢ SSWP m @ id; E {{m', WP m' @ id; E {{ Φ }} }}.
 Proof.
   rewrite wp_unfold sswp_eq /wp_pre /sswp_def.
   destruct (terminated m) eqn:Hm; last done.
@@ -232,7 +232,7 @@ Proof.
 Qed.
 
 Lemma wp_parwp id E m Φ :
-  WP m @ id; E {{ Φ }} ⊣⊢ PARWP m @ id; E {{m', wp id E m' Φ}}.
+  WP m @ id; E {{ Φ }} ⊣⊢ PARWP m @ id; E {{m', WP m' @ id; E {{ Φ }} }}.
 Proof.
   iLöb as "IH" forall (m E Φ).
   rewrite wp_unfold parwp_unfold /wp_pre /parwp_pre.
@@ -272,7 +272,7 @@ Proof.
 Qed.
 
 Lemma parwp_sswp id E m Φ :
-  SSWP m @ id; E {{m', parwp id E m' Φ}} ⊢ PARWP m @ id; E {{ Φ }}.
+  SSWP m @ id; E {{m', PARWP m' @ id; E {{ Φ }} }} ⊢ PARWP m @ id; E {{ Φ }}.
 Proof.
   rewrite sswp_eq parwp_unfold /sswp_def /parwp_pre.
   destruct (terminated m) eqn:Hm.
