@@ -24,14 +24,15 @@ Lemma sswp_eq `{!irisG M Σ} : sswp = @sswp_def M Σ _.
 Proof. rewrite -sswp_aux.(seal_eq) //. Qed.
 
 Definition parwp_pre `{!irisG M Σ} (id : vmid)
-    (wp : coPset -d> mode M -d> (mode M -d> iPropO Σ) -d> iPropO Σ) :
+    (parwp : coPset -d> mode M -d> (mode M -d> iPropO Σ) -d> iPropO Σ) :
   coPset -d> mode M -d> (mode M -d> iPropO Σ) -d> iPropO Σ := λ E m1 Φ,
-  (|={E}=> (|={E}=> Φ m1) ∨
-   ⌜terminated m1 = false⌝ ∧
-   ∀ σ1, ⌜scheduled σ1 id⌝ -∗ state_interp σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
-     ∀ m2 σ2,
-       ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         state_interp σ2 ∗ wp E m2 Φ)%I.
+  (|={E}=>
+    (|={E}=> Φ m1) ∨
+    ⌜terminated m1 = false⌝ ∧
+    ∀ σ1, ⌜scheduled σ1 id⌝ -∗ state_interp σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
+      ∀ m2 σ2,
+        ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
+        state_interp σ2 ∗ parwp E m2 Φ)%I.
 
 Local Instance parwp_pre_contractive `{!irisG M Σ} id : Contractive (parwp_pre id).
 Proof.
