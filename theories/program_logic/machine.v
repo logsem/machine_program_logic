@@ -1,5 +1,7 @@
 From iris.algebra Require Export ofe.
 
+Definition vmid := nat.
+
 Section machine_mixin.
   Context {mode state : Type}.
   Context (terminated : mode → bool).
@@ -17,7 +19,7 @@ Structure machine := Machine {
   state : Type;
   terminated : mode → bool;
   prim_step : mode → state → mode → state → Prop;
-  scheduler : option (state → nat → Prop);
+  scheduler : option (state → vmid → Prop);
   machine_mixin :
     MachineMixin terminated prim_step
 }.
@@ -25,8 +27,6 @@ Structure machine := Machine {
 Arguments Machine {_ _} _ _ _ _.
 Arguments terminated {_} _.
 Arguments prim_step {_} _ _ _ _.
-
-Definition vmid := nat.
 
 Definition scheduled {M : machine} (σ : state M) (n : vmid) : Prop :=
   match scheduler M with
