@@ -100,8 +100,8 @@ Qed.
 End adequacy.
 
 (** Iris's generic adequacy result *)
-Theorem wp_strong_adequacy Σ M `{!invPreG Σ} ms1 σ1 n ms2 σ2 φ :
-  (∀ `{Hinv : !invG Σ},
+Theorem wp_strong_adequacy Σ M `{!invGpreS Σ} ms1 σ1 n ms2 σ2 φ :
+  (∀ `{Hinv : !invGS Σ},
     ⊢ |={⊤}=> ∃
          (stateI : state M → iProp Σ)
          (Φs : list (mode M → iProp Σ)),
@@ -189,8 +189,8 @@ Proof.
   rewrite Hm2ter in Hn1; done.
 Qed.
 
-Corollary wp_adequacy Σ M `{!invPreG Σ} ms σ φs :
-  (∀ `{Hinv : !invG Σ},
+Corollary wp_adequacy Σ M `{!invGpreS Σ} ms σ φs :
+  (∀ `{Hinv : !invGS Σ},
      ⊢ |={⊤}=> ∃
          (stateI : state M → iProp Σ),
        let _ : irisG M Σ :=
@@ -226,8 +226,8 @@ Proof.
     iPureIntro. apply None_Forall2.
 Qed.
 
-Corollary wp_invariance Σ M `{!invPreG Σ} ms1 σ1 ms2 σ2 φ :
-  (∀ `{Hinv : !invG Σ},
+Corollary wp_invariance Σ M `{!invGpreS Σ} ms1 σ1 ms2 σ2 φ :
+  (∀ `{Hinv : !invGS Σ},
      ⊢ |={⊤}=> ∃
          (stateI : state M → iProp Σ),
        let _ : irisG M Σ := IrisG _ _ Hinv stateI in

@@ -3,7 +3,7 @@ From iris.base_logic.lib Require Export fancy_updates.
 From machine_program_logic.program_logic Require Export machine.
 
 Class irisG (M : machine) (Σ : gFunctors) := IrisG {
-  iris_invG :> invG Σ;
+  iris_invG :> invGS Σ;
   (** The state interpretation is an invariant that should hold in between each
   step of reduction. *)
   state_interp : state M → iProp Σ;
