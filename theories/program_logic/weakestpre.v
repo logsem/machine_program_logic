@@ -441,6 +441,41 @@ Lemma fupd_parwp id E m Φ :
   (|={E}=> PARWP m @ id ; E {{ Φ }}) ⊢ PARWP m @ id; E {{ Φ }}.
 Proof. rewrite parwp_unfold /parwp_pre. iIntros ">H"; done. Qed.
 
+Lemma parwp_parwp id E m Φ :
+  PARWP m @ id; E {{m', PARWP m' @ id; E {{ Φ }} }} ⊢ PARWP m @ id; E {{ Φ }}.
+Proof.
+  iLöb as "IH" forall (m E Φ).
+  rewrite parwp_unfold /parwp_pre.
+  iIntros "H".
+  iApply fupd_parwp.
+  iMod "H" as "[H|H]".
+  - by iMod "H".
+  - iDestruct "H" as "[% H]".
+    rewrite parwp_unfold.
+    rewrite /parwp_pre /parwp_def.
+    iModIntro.
+    iRight.
+    iModIntro.
+    iSplit; [done|].
+    iIntros (σ1) "%sch".
+    iIntros "sti".
+    iSpecialize ("H" $! σ1 sch with "sti").
+    iMod "H".
+    iDestruct "H" as "(red & H)".
+    iModIntro.
+    iSplit; first done.
+    iIntros (m2 σ2) "prims".
+    iSpecialize ("H" $! m2 σ2 with "prims").
+    iMod "H".
+    iModIntro.
+    iModIntro.
+    iMod "H".
+    iDestruct "H" as "(sti' & par)".
+    iModIntro.
+    iSplitL "sti'"; first done.
+    iApply ("IH" $! m2 E Φ with "par").
+Qed.
+
 Lemma parwp_fupd id E m Φ :
   PARWP m @ id; E {{ k, |={E}=> Φ k }} ⊢ PARWP m @ id; E {{ Φ }}.
 Proof. iIntros "H". iApply (parwp_strong_mono id E with "H"); auto. Qed.
