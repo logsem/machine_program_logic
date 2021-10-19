@@ -1,3 +1,4 @@
+From stdpp Require Import gmap.
 From iris.algebra Require Export ofe.
 
 Definition vmid := nat.
@@ -17,21 +18,23 @@ End machine_mixin.
 Structure machine := Machine {
   mode : Type;
   state : Type;
+  vmids : state → gset vmid;
   terminated : mode → bool;
   prim_step : mode → state → mode → state → Prop;
-  scheduler : option (state → vmid → Prop);
+  scheduler : option (state → vmid → bool);
   machine_mixin :
     MachineMixin terminated prim_step
 }.
 
 Arguments Machine {_ _} _ _ _ _.
+Arguments vmids {_} _.
 Arguments terminated {_} _.
 Arguments prim_step {_} _ _ _ _.
 
-Definition scheduled {M : machine} (σ : state M) (n : vmid) : Prop :=
+Definition scheduled {M : machine} (σ : state M) (n : vmid) : bool :=
   match scheduler M with
   | Some P => P σ n
-  | None => True
+  | None => true
   end.
 
 Canonical Structure stateO M := leibnizO (state M).
@@ -59,7 +62,7 @@ Section machine.
 
   Inductive step (ρ1 ρ2 : cfg M) : Prop :=
     | step_atomic m1 σ1 m2 σ2 ms1 ms2 :
-       scheduled σ1 (length ms1) →
+       scheduled σ1 (length ms1) = true →
        ρ1 = (ms1 ++ m1 :: ms2, σ1) →
        ρ2 = (ms1 ++ m2 :: ms2, σ2) →
        prim_step m1 σ1 m2 σ2 →
@@ -87,7 +90,7 @@ Section machine.
   Qed.
 
   Lemma step_insert i t2 σ2 m m' σ3 :
-    scheduled σ2 i →
+    scheduled σ2 i = true →
     t2 !! i = Some m →
     prim_step m σ2 m' σ3 →
     step (t2, σ2) (<[i:=m']>t2, σ3).
