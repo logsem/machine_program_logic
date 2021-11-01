@@ -11,7 +11,7 @@ Class irisG (M : machine) (Σ : gFunctors) := IrisG {
   irisG_name_map_name : gname;
   (** The state interpretation is an invariant that should hold in between each
   step of reduction. *)
-  state_interp : state M → iProp Σ;
+  state_interp : nat → state M → iProp Σ;
 }.
 Global Opaque iris_invG.
 
@@ -69,22 +69,22 @@ End props.
 Definition just_scheduled {M} (σ1 σ2 : state M) (id : vmid) : bool :=
   negb (scheduled σ1 id) && (scheduled σ2 id).
 
-Definition just_scheduled_vms {M} (σ1 σ2 : state M) : gset vmid :=
-  filter (λ id, just_scheduled σ1 σ2 id = true) (vmids σ2).
+Definition just_scheduled_vms {M} (n : nat) (σ1 σ2 : state M) : list vmid :=
+  filter (λ id, just_scheduled σ1 σ2 id = true) (seq 0 n).
 
 (* The boolean in the postcondition is true if the vm was enabled before the step but *)
-(* is disabled afterwards. *)
+(* is disabled afterwards, unless it is terminated. *)
 
 Definition sswp_def `{!irisG M Σ} (id : vmid) :
   coPset -d> mode M -d> ((bool * mode M) -d> iPropO Σ) -d> iPropO Σ := λ E m1 Φ,
   (if terminated m1 then |={E}=> Φ (false, m1) else
-     ∀ σ1, ⌜scheduled σ1 id⌝ -∗ state_interp σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
+     ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
          (∃ P, VMPropAuth id P) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         (∃ P, VMPropAuth id P) ∗ state_interp σ2 ∗
-         ([∗ set] vmid ∈ just_scheduled_vms σ1 σ2, VMProp_holds vmid) ∗
-         Φ (negb (scheduled σ2 id), m2))%I.
+         (∃ P, VMPropAuth id P) ∗ state_interp n σ2 ∗
+         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+         Φ (negb (scheduled σ2 id) && negb (terminated m2), m2))%I.
 
 Definition sswp_aux : seal (@sswp_def). Proof. by eexists. Qed.
 Definition sswp := sswp_aux.(unseal).
@@ -98,14 +98,14 @@ Definition parwp_pre `{!irisG M Σ} (id : vmid)
   (|={E}=>
     (|={E}=> Φ m1) ∨
     ⌜terminated m1 = false⌝ ∧
-    ∀ σ1, ⌜scheduled σ1 id⌝ -∗ state_interp σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
+    ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
       ∀ m2 σ2,
         (∃ P, VMPropAuth id P) -∗
         ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
         (∃ P, VMPropAuth id P) ∗
-        ([∗ set] vmid ∈ just_scheduled_vms σ1 σ2, VMProp_holds vmid) ∗
-        state_interp σ2 ∗
-        ((if scheduled σ2 id then True else VMProp_holds id) -∗ parwp E m2 Φ))%I.
+        ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+        state_interp n σ2 ∗
+        ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ parwp E m2 Φ))%I.
 
 Local Instance parwp_pre_contractive `{!irisG M Σ} id : Contractive (parwp_pre id).
 Proof.
@@ -125,14 +125,14 @@ Definition wp_pre `{!irisG M Σ} (id : vmid)
     (wp : coPset -d> mode M -d> (mode M -d> iPropO Σ) -d> iPropO Σ) :
   coPset -d> mode M -d> (mode M -d> iPropO Σ) -d> iPropO Σ := λ E m1 Φ,
   (if terminated m1 then |={E}=> Φ m1 else
-     ∀ σ1, ⌜scheduled σ1 id⌝ -∗ state_interp σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
+     ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
          (∃ P, VMPropAuth id P) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
          (∃ P, VMPropAuth id P) ∗
-         ([∗ set] vmid ∈ just_scheduled_vms σ1 σ2, VMProp_holds vmid) ∗
-         state_interp σ2 ∗
-         ((if scheduled σ2 id then True else VMProp_holds id) -∗ wp E m2 Φ))%I.
+         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+         state_interp n σ2 ∗
+         ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ wp E m2 Φ))%I.
 
 Local Instance wp_pre_contractive `{!irisG M Σ} id : Contractive (wp_pre id).
 Proof.
@@ -312,26 +312,28 @@ Proof.
     + iIntros ">?"; iModIntro; eauto.
     + iIntros ">H"; iApply "H"; done.
   - iSplit.
-    + iIntros "H" (? ?) "Hsi".
+    + iIntros "H" (? ? ?) "Hsi".
       iMod ("H" with "[//] Hsi") as "[% H]".
       iModIntro; iSplit; first done.
       iIntros (? σ2) "HPr %".
       iMod ("H" with "[$] [//]") as "H".
       iModIntro.
       iNext.
-      iMod "H" as "($&$&$&?)".
+      iMod "H" as "($&$&$&H)".
       iModIntro.
-      destruct (scheduled σ2 id); done.
-    + iIntros "H" (? ?) "Hsi".
+      destruct (scheduled σ2 id); destruct (terminated m2);
+        simpl; iIntros "?"; iApply "H"; done.
+    + iIntros "H" (? ? ?) "Hsi".
       iMod ("H" with "[//] Hsi") as "[% H]".
       iModIntro; iSplit; first done.
       iIntros (? σ2) "HPr %".
       iMod ("H" with "[$] [//]") as "H".
       iModIntro.
       iNext.
-      iMod "H" as "($&$&$&?)".
+      iMod "H" as "($&$&$&H)".
       iModIntro.
-      destruct (scheduled σ2 id); done.
+      destruct (scheduled σ2 id); destruct (terminated m2);
+        simpl; iIntros "?"; iApply "H"; done.
 Qed.
 
 Lemma wp_parwp id E m Φ :
@@ -350,7 +352,7 @@ Proof.
       * iDestruct "H"as "[% ?]"; done.
   - iSplit.
     + iIntros "H". iModIntro. iRight. iSplit; first done.
-      iIntros (σ1 Hsch) "Hσ1".
+      iIntros (? σ1 Hsch) "Hσ1".
       iMod ("H" with "[//] Hσ1") as "[% H]".
       iModIntro. iSplit; first done.
       iIntros (m2 σ2) "HPr"; iIntros (Hstep).
@@ -366,7 +368,7 @@ Proof.
         rewrite wp_unfold /wp_pre Hm.
         iApply "H"; done.
       * iDestruct "H" as "[_ H]".
-        iIntros (σ1 hsch) "Hσ1".
+        iIntros (? σ1 hsch) "Hσ1".
         iMod ("H" with "[//] Hσ1") as "[% H]".
         iModIntro. iSplit; first done.
         iIntros (m2 σ2) "HPr"; iIntros (Hstep).
@@ -392,7 +394,7 @@ Proof.
     iDestruct "H"as "[% ?]"; done.
   - iIntros "H"; iRight; iModIntro.
     iSplit; first done.
-    iIntros (? ?) "Hsi".
+    iIntros (? ? ?) "Hsi".
     iMod ("H" with "[//] Hsi") as "[% H]".
     iModIntro; iSplit; first done.
     iIntros (? σ2) "HPr %".
@@ -402,7 +404,7 @@ Proof.
     iModIntro.
     iIntros "?".
     iApply "H".
-    destruct (scheduled σ2 id); done.
+    destruct (scheduled σ2 id); destruct (terminated m2); done.
 Qed.
 
 Global Instance sswp_ne id E m n :
@@ -488,7 +490,7 @@ Proof.
   rewrite sswp_eq /sswp_def.
   destruct (terminated m) eqn:?.
   { iApply ("Hξ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
-  iIntros (σ1 Hsch) "Hσ".
+  iIntros (? σ1 Hsch) "Hσ".
   iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
   iMod ("H" with "[//] [$]") as "[% H]".
   iModIntro. iSplit; first done.
@@ -511,7 +513,7 @@ Proof.
   iDestruct "H" as "[H|[% H]]".
   { iLeft. iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
   iRight; iSplit; first done.
-  iIntros (σ1 Hsch) "Hσ".
+  iIntros (? σ1 Hsch) "Hσ".
   iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
   iMod ("H" with "[//] [$]") as "[% H]".
   iModIntro. iSplit; first done.
@@ -532,7 +534,7 @@ Proof.
   rewrite !wp_unfold /wp_pre.
   destruct (terminated m) eqn:?.
   { iApply ("HΦ" with "[> -]"). by iApply (fupd_mask_mono E1 _). }
-  iIntros (σ1 Hsch) "Hσ".
+  iIntros (? σ1 Hsch) "Hσ".
   iMod (fupd_mask_subseteq E1) as "Hclose"; first done.
   iMod ("H" with "[//] [$]") as "[% H]".
   iModIntro. iSplit; first done.
@@ -551,7 +553,7 @@ Proof.
   rewrite sswp_eq /sswp_def. iIntros "H".
   destruct (terminated m) eqn:?.
   { by iMod "H". }
-  iIntros (σ1) "Hσ1". iMod "H".
+  iIntros (? σ1) "Hσ1". iMod "H".
   iApply ("H" with "Hσ1"); done.
 Qed.
 Lemma sswp_fupd id E m ξ :
@@ -578,9 +580,9 @@ Proof.
     iRight.
     iModIntro.
     iSplit; [done|].
-    iIntros (σ1) "%sch".
+    iIntros (? σ1) "%sch".
     iIntros "sti".
-    iSpecialize ("H" $! σ1 sch with "sti").
+    iSpecialize ("H" $! _ σ1 sch with "sti").
     iMod "H".
     iDestruct "H" as "(red & H)".
     iModIntro.
@@ -607,7 +609,7 @@ Lemma fupd_wp id E m Φ : (|={E}=> WP m @ id; E {{ Φ }}) ⊢ WP m @ id; E {{ Φ
 Proof.
   rewrite wp_unfold /wp_pre. iIntros "H". destruct (terminated m) eqn:?.
   { by iMod "H". }
-  iIntros (σ1) "Hσ1". iMod "H".
+  iIntros (? σ1) "Hσ1". iMod "H".
   iApply ("H" with "Hσ1"); done.
 Qed.
 Lemma wp_fupd id E m Φ : WP m @ id; E {{ k, |={E}=> Φ k }} ⊢ WP m @ id; E {{ Φ }}.
@@ -620,7 +622,7 @@ Proof.
   rewrite sswp_eq /sswp_def.
   destruct (terminated m).
   { by iDestruct "H" as ">>> $". }
-  iIntros (σ1 Hsch) "Hσ1".
+  iIntros (? σ1 Hsch) "Hσ1".
   iMod "H". iMod ("H" with "[//] Hσ1") as "[% H]".
   iModIntro; iSplit; first done.
   iIntros (m2 σ2) "HPr"; iIntros (Hstep).
@@ -636,7 +638,7 @@ Lemma sswp_step_fupd id E1 E2 m P ξ :
   SSWP m @ id; E1 {{ ξ }}.
 Proof.
   rewrite sswp_eq /sswp_def. iIntros (->) "HP H".
-  iIntros (σ1 Hsch) "Hσ1".
+  iIntros (? σ1 Hsch) "Hσ1".
   iMod "HP".
   iMod ("H" with "[//] Hσ1") as "[% H]".
   iModIntro; iSplit; first done.
@@ -654,7 +656,7 @@ Lemma wp_step_fupd id E1 E2 m P Φ :
   WP m @ id; E1 {{ Φ }}.
 Proof.
   rewrite !wp_unfold /wp_pre. iIntros (-> ?) "HP H".
-  iIntros (σ1 Hsch) "Hσ1".
+  iIntros (? σ1 Hsch) "Hσ1".
   iMod "HP".
   iMod ("H" with "[//] Hσ1") as "[% H]".
   iModIntro; iSplit; first done.

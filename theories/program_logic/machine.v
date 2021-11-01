@@ -18,7 +18,6 @@ End machine_mixin.
 Structure machine := Machine {
   mode : Type;
   state : Type;
-  vmids : state → gset vmid;
   terminated : mode → bool;
   prim_step : mode → state → mode → state → Prop;
   scheduler : option (state → vmid → bool);
@@ -27,7 +26,6 @@ Structure machine := Machine {
 }.
 
 Arguments Machine {_ _} _ _ _ _.
-Arguments vmids {_} _.
 Arguments terminated {_} _.
 Arguments prim_step {_} _ _ _ _.
 
