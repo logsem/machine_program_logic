@@ -1,12 +1,12 @@
 From iris.proofmode Require Import base tactics classes.
-From iris.algebra Require Import excl auth gmap.
+From iris.algebra Require Import cmra excl auth gmap agree frac_agree.
 From iris.base_logic.lib Require Export fancy_updates saved_prop.
 From machine_program_logic.program_logic Require Export machine.
 
 Class irisG (M : machine) (Σ : gFunctors) := IrisG {
   iris_invG :> invGS Σ;
   irisG_saved_prop :> savedPropG Σ;
-  irisG_prop_name :> inG Σ (authUR (optionUR (exclR gnameO)));
+  irisG_prop_name :> inG Σ (authUR (optionUR (frac_agreeR gnameO)));
   irisG_name_map :> inG Σ (authUR (gmapUR nat (agreeR gnameO)));
   irisG_name_map_name : gname;
   (** The state interpretation is an invariant that should hold in between each
@@ -17,16 +17,16 @@ Global Opaque iris_invG.
 
 Section props.
   Context `{!irisG M Σ}.
-  
-  Definition VMProp (id : vmid) (P : iProp Σ) : iProp Σ :=
-    ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
-              own γvmn (◯ Excl' γ) ∗ saved_prop_own γ P.
 
-  Definition VMPropAuth (id : vmid) (P : iProp Σ) : iProp Σ :=
+  Definition VMProp (id : vmid) (P : iProp Σ) (q : frac) : iProp Σ :=
     ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
-              own γvmn (● Excl' γ) ∗ saved_prop_own γ P.
+              own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P.
 
-  Lemma VMProp_agree id P Q : VMPropAuth id P -∗ VMProp id Q -∗ ▷ (P ≡ Q).
+  Definition VMPropAuth (id : vmid) (P : iProp Σ) (q : frac) : iProp Σ :=
+    ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
+              own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P.
+
+  Lemma VMProp_agree id P Q q q' : VMPropAuth id P q -∗ VMProp id Q q' -∗ ▷ (P ≡ Q).
   Proof.
     iDestruct 1 as (γvmn1 γ1) "(Hvmn1 & Hγ1 & #HP)".
     iDestruct 1 as (γvmn2 γ2) "(Hvmn2 & Hγ2 & #HQ)".
@@ -34,19 +34,38 @@ Section props.
     specialize (Hvalid id).
     rewrite lookup_op !lookup_singleton -Some_op in Hvalid.
     apply to_agree_op_inv, leibniz_equiv in Hvalid as <-.
-    iDestruct (own_valid_2 with "Hγ1 Hγ2") as
-        %[<-%Excl_included%leibniz_equiv _]%auth_both_valid_discrete.
-    iApply saved_prop_agree; done.
+    iDestruct (own_valid_2 with "Hγ1 Hγ2") as %authv.
+    apply auth_both_valid_discrete in authv.
+    destruct authv as [authv1 authv2].
+    apply option_included in authv1.
+    destruct authv1 as [Contra | authv1]; first done.
+    destruct authv1 as (a & b & Heq1 & Heq2 & Heq3).
+    inversion Heq1 as [Heq1'].
+    rewrite <-Heq1' in Heq3.
+    inversion Heq2 as [Heq2'].
+    rewrite <-Heq2' in Heq3.
+    destruct Heq3 as [Heq3 | Hincl].
+    - simplify_eq.
+      inversion Heq3 as [Heq4 Heq5].
+      simpl in *.
+      apply to_agree_inj in Heq5.      
+      simplify_eq.
+      iApply saved_prop_agree; done.
+    - apply frac_agree_included in Hincl.
+      destruct Hincl as [_ Heq].
+      iApply saved_prop_agree. iExact "HP".
+      iEval (rewrite Heq) in "HQ".
+      done.
   Qed.
 
-  Lemma VMProp_agree' id P Q : VMPropAuth id P -∗ VMProp id Q -∗ ▷ P ≡ ▷ Q.
+  Lemma VMProp_agree' id P Q q q' : VMPropAuth id P q -∗ VMProp id Q q' -∗ ▷ P ≡ ▷ Q.
   Proof.
     iIntros "? ?".
     iApply later_equivI_prop_2.
     iApply (VMProp_agree with "[$] [$]").
   Qed.
 
-  Lemma VMProp_update id P Q R : VMPropAuth id P -∗ VMProp id Q ==∗ VMPropAuth id R ∗ VMProp id R.
+  Lemma VMProp_update id P Q R : VMPropAuth id P 1 -∗ VMProp id Q 1 ==∗ VMPropAuth id R 1 ∗ VMProp id R 1.
   Proof.
     iDestruct 1 as (γvmn1 γ1) "(#Hvmn1 & Hγ1 & _)".
     iDestruct 1 as (γvmn2 γ2) "(#Hvmn2 & Hγ2 & _)".
@@ -54,15 +73,27 @@ Section props.
     specialize (Hvalid id).
     rewrite lookup_op !lookup_singleton -Some_op in Hvalid.
     apply to_agree_op_inv, leibniz_equiv in Hvalid as <-.
-    iDestruct (own_valid_2 with "Hγ1 Hγ2") as
-        %[<-%Excl_included%leibniz_equiv _]%auth_both_valid_discrete.
+    iDestruct (own_valid_2 with "Hγ1 Hγ2") as %authv.
+    apply auth_both_valid_discrete in authv.
+    destruct authv as [authv1 authv2].
+    apply option_included in authv1.
+    destruct authv1 as [Contra | authv1]; first done.
+    destruct authv1 as (a & b & Heq1 & Heq2 & Heq3).
+    inversion Heq1 as [Heq1'].
+    rewrite <-Heq1' in Heq3.
+    inversion Heq2 as [Heq2'].
+    rewrite <-Heq2' in Heq3.    
     iMod (saved_prop_alloc R) as (γ) "#Hγ".
-    iMod (own_update_2 _ _ _ (● Excl' γ ⋅ ◯ Excl' γ) with "Hγ1 Hγ2") as "[Hγ1 Hγ2]".
-    { apply auth_update, option_local_update, exclusive_local_update; done. }
-    iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".
+    iMod (own_update_2 _ _ _ (● (Some (to_frac_agree 1 γ)) ⋅ ◯ (Some (to_frac_agree 1 γ))) with "Hγ1 Hγ2") as "[Hγ1 Hγ2]".
+    {
+      apply auth_update, option_local_update.
+      apply exclusive_local_update.
+      done.
+    }
+    iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".    
   Qed.
 
-  Definition VMProp_holds (id : vmid) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P.
+  Definition VMProp_holds (id : vmid) : iProp Σ := ∃ P q, ▷ P ∗ VMProp id P q.
 
 End props.
 
@@ -80,9 +111,9 @@ Definition sswp_def `{!irisG M Σ} (id : vmid) :
   (if terminated m1 then |={E}=> Φ (false, m1) else
      ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
-         (∃ P, VMPropAuth id P) -∗
+         (∃ P q, VMPropAuth id P q) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         (∃ P, VMPropAuth id P) ∗ state_interp n σ2 ∗
+         (∃ P q, VMPropAuth id P q) ∗ state_interp n σ2 ∗
          ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
          Φ (negb (scheduled σ2 id) && negb (terminated m2), m2))%I.
 
@@ -100,9 +131,9 @@ Definition parwp_pre `{!irisG M Σ} (id : vmid)
     ⌜terminated m1 = false⌝ ∧
     ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
       ∀ m2 σ2,
-        (∃ P, VMPropAuth id P) -∗
+        (∃ P q, VMPropAuth id P q) -∗
         ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-        (∃ P, VMPropAuth id P) ∗
+        (∃ P q, VMPropAuth id P q) ∗
         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
         state_interp n σ2 ∗
         ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ parwp E m2 Φ))%I.
@@ -127,9 +158,9 @@ Definition wp_pre `{!irisG M Σ} (id : vmid)
   (if terminated m1 then |={E}=> Φ m1 else
      ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
-         (∃ P, VMPropAuth id P) -∗
+         (∃ P q, VMPropAuth id P q) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         (∃ P, VMPropAuth id P) ∗
+         (∃ P q, VMPropAuth id P q) ∗
          ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
          state_interp n σ2 ∗
          ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ wp E m2 Φ))%I.

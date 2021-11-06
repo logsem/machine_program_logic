@@ -1,6 +1,6 @@
 From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import wsat invariants saved_prop.
-From iris.algebra Require Import auth excl gmap.
+From iris.algebra Require Import auth excl gmap frac_agree.
 From machine_program_logic.program_logic Require Export weakestpre.
 Import uPred.
 
@@ -49,7 +49,7 @@ Implicit Types Φ : mode M → iProp Σ.
 Implicit Types Φs : list (mode M → iProp Σ).
 
 Definition wpvm σ id m Φ : iProp Σ :=
-  ((∃ P, VMPropAuth id P) ∗
+  ((∃ P q, VMPropAuth id P q) ∗
    if terminated m then Φ m else
      ((if scheduled σ id then True else VMProp_holds id) -∗ WP m @ id; ⊤ {{ Φ }}))%I.
 
@@ -228,12 +228,12 @@ End adequacy.
 Class irisPreGS (Σ : gFunctors) := IrisPreG {
   iris_invPreGS :> invGpreS Σ;
   irisG_saved_prop :> savedPropG Σ;
-  irisG_prop_name :> inG Σ (authUR (optionUR (exclR gnameO)));
+  irisG_prop_name :> inG Σ (authUR (optionUR (frac_agreeR gnameO)));
   irisG_name_map :> inG Σ (authUR (gmapUR nat (agreeR gnameO)));
 }.
 
 Definition irisΣ :=
-  #[invΣ; savedPropΣ; GFunctor (authUR (optionUR (exclR gnameO)));
+  #[invΣ; savedPropΣ; GFunctor (authUR (optionUR (frac_agreeR gnameO)));
     GFunctor (authUR (gmapUR nat (agreeR gnameO)))].
 
 Global Instance iris_subG Σ : subG irisΣ Σ → irisPreGS Σ.
@@ -241,14 +241,14 @@ Proof. solve_inG. Qed.
 
 Lemma allocated_props `{!irisPreGS Σ} n (N : gmap nat gname) (Ps : list (iProp Σ)) γ :
   let VMProp γNN id P :=
-      (∃ (γvmn : gname) (γ : gnameO),
+      (∃ q (γvmn : gname) (γ : gnameO),
         own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (◯ Excl' γ) ∗ saved_prop_own γ P)%I
+            ∗ own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)%I
   in
   let VMPropAuth γNN id P :=
-      (∃ (γvmn : gname) (γ : gnameO),
+      (∃ q (γvmn : gname) (γ : gnameO),
         own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (● Excl' γ) ∗ saved_prop_own γ P)%I
+            ∗ own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)%I
   in
   own γ (● (to_agree <$> N : gmapUR nat (agreeR gnameO))) -∗
   ⌜∀ k, k ∈ dom (gset nat) N ↔ k < n⌝ ==∗
@@ -265,7 +265,7 @@ Proof.
     iPureIntro.
     intros ?; rewrite HN; lia.
   - iMod (saved_prop_alloc P) as (γP) "#HP".
-    iMod (own_alloc ((● Excl' γP) ⋅ (◯ Excl' γP))) as (γPe) "[HγPeF HγPe]".
+    iMod (own_alloc ((● (Some (to_frac_agree 1%Qp γP))) ⋅ (◯ (Some (to_frac_agree 1%Qp γP))))) as (γPe) "[HγPeF HγPe]".
     { apply auth_both_valid; done. }
     iMod (own_update
             _ _ (● (to_agree <$> <[n := γPe]>N : gmapUR nat (agreeR gnameO))
@@ -282,7 +282,7 @@ Proof.
     rewrite /= !Nat.add_0_r.
     setoid_rewrite <- Nat.add_succ_comm.
     iSplitR "HγPeF HPsF"; [iFrame "HPs"|iFrame "HPsF"];
-      iExists _, _; iFrame; iFrame "#".
+      iExists _, _, _; iFrame; iFrame "#".
 Qed.
 
 (** Iris's generic adequacy result *)
@@ -297,7 +297,7 @@ Theorem wp_strong_adequacy Σ M `{!irisPreGS Σ} ms1 σ1 n ms2 σ2 φ :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms1⌝ ∗
        stateI (length ms1) σ1 ∗
-       (([∗ list] id ↦ P ∈ Ps, VMProp id P) -∗
+       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
            [∗ list] id ↦ m;Φ ∈ ms1;Φs,
              if terminated m then
                 Φ m
@@ -333,13 +333,13 @@ Proof.
   iSpecialize ("Hwp" with "HPs").
   set (IG := IrisG _ _ Hinv _ _ _ name_map_name stateI).
   iDestruct (big_sepL2_length with "Hwp") as %HΦs.
-  iAssert ([∗ list] id↦m;_ ∈ ms1;Φs, ∃ P, VMPropAuth id P)%I with "[HPsF]" as "HPsF".
+  iAssert ([∗ list] id↦m;_ ∈ ms1;Φs, ∃ P q, VMPropAuth id P q)%I with "[HPsF]" as "HPsF".
   { clear -Ps Hlen Φs HΦs.
     iStopProof.
-    change (([∗ list] id↦P ∈ Ps, ∃ (γvmn : gname) (γ : gnameO),
+    change (([∗ list] id↦P ∈ Ps, ∃ q (γvmn : gname) (γ : gnameO),
                          own name_map_name (◯ {[0 + id := to_agree γvmn]})
-                         ∗ own γvmn (● Excl' γ) ∗ saved_prop_own γ P)
-              -∗ [∗ list] id↦_;_ ∈ ms1;Φs, ∃ P : iProp Σ, VMPropAuth (0 + id) P).
+                         ∗ own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)
+              -∗ [∗ list] id↦_;_ ∈ ms1;Φs, ∃ (P : iProp Σ) q, VMPropAuth (0 + id) P q).
     generalize 0 as k.
     revert Ps Hlen Φs HΦs.
     induction ms1 as [|m ms1 IHms1]; iIntros (Ps Hlen Φs HΦs k) "HPsF".
@@ -427,7 +427,7 @@ Corollary wp_adequacy Σ M `{!irisPreGS Σ} ms σ φs :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms⌝ ∗
        stateI (length ms) σ ∗
-       (([∗ list] id ↦ P ∈ Ps, VMProp id P) -∗
+       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
            [∗ list] id ↦ m;Φ ∈ ms;φs,
              if terminated m then
                 ⌜Φ m⌝
@@ -482,7 +482,7 @@ Corollary wp_invariance Σ M `{!irisPreGS Σ} ms1 σ1 ms2 σ2 φ :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms1⌝ ∗
        stateI (length ms1) σ1 ∗
-       (([∗ list] id ↦ P ∈ Ps, VMProp id P) -∗
+       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
            [∗ list] id ↦ m ∈ ms1,
              if terminated m then
                 True
