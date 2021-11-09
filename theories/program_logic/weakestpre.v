@@ -93,6 +93,28 @@ Section props.
     iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".    
   Qed.
 
+  Lemma VMProp_split id Q q : VMProp id Q q -∗ (VMProp id Q (q/2) ∗ VMProp id Q (q/2)).
+  Proof.
+    iIntros "H".
+    rewrite <-(Qp_div_2 q).
+    rewrite /VMProp.
+    iDestruct "H" as "(%γvmn & %γ & Hmapown & Hnameown & Hsavedprop)".
+    rewrite frac_agree_op.
+    rewrite Some_op.
+    rewrite auth_frag_op.
+    rewrite own_op.
+    iDestruct "Hsavedprop" as "#Hsavedprop".
+    iDestruct "Hmapown" as "#Hmapown".
+    iDestruct "Hnameown" as "[Hnameown1 Hnameown2]".
+    iSplitL "Hnameown1".
+    - iExists γvmn, γ.
+      rewrite (Qp_div_2 q).
+      iFrame "Hnameown1 Hsavedprop Hmapown".
+    - iExists γvmn, γ.
+      rewrite (Qp_div_2 q).
+      iFrame "Hnameown2 Hsavedprop Hmapown".
+  Qed.
+
   Definition VMProp_holds (id : vmid) (q : frac) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P q.
 
 End props.
