@@ -22,11 +22,11 @@ Section props.
     ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
               own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P.
 
-  Definition VMPropAuth (id : vmid) (P : iProp Σ) (q : frac) : iProp Σ :=
+  Definition VMPropAuth (id : vmid) (P : iProp Σ) : iProp Σ :=
     ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
-              own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P.
+              own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P.
 
-  Lemma VMProp_agree id P Q q q' : VMPropAuth id P q -∗ VMProp id Q q' -∗ ▷ (P ≡ Q).
+  Lemma VMProp_agree id P Q q' : VMPropAuth id P -∗ VMProp id Q q' -∗ ▷ (P ≡ Q).
   Proof.
     iDestruct 1 as (γvmn1 γ1) "(Hvmn1 & Hγ1 & #HP)".
     iDestruct 1 as (γvmn2 γ2) "(Hvmn2 & Hγ2 & #HQ)".
@@ -58,14 +58,14 @@ Section props.
       done.
   Qed.
 
-  Lemma VMProp_agree' id P Q q q' : VMPropAuth id P q -∗ VMProp id Q q' -∗ ▷ P ≡ ▷ Q.
+  Lemma VMProp_agree' id P Q q' : VMPropAuth id P -∗ VMProp id Q q' -∗ ▷ P ≡ ▷ Q.
   Proof.
     iIntros "? ?".
     iApply later_equivI_prop_2.
     iApply (VMProp_agree with "[$] [$]").
   Qed.
 
-  Lemma VMProp_update id P Q R : VMPropAuth id P 1 -∗ VMProp id Q 1 ==∗ VMPropAuth id R 1 ∗ VMProp id R 1.
+  Lemma VMProp_update id P Q R : VMPropAuth id P -∗ VMProp id Q 1 ==∗ VMPropAuth id R ∗ VMProp id R 1.
   Proof.
     iDestruct 1 as (γvmn1 γ1) "(#Hvmn1 & Hγ1 & _)".
     iDestruct 1 as (γvmn2 γ2) "(#Hvmn2 & Hγ2 & _)".
@@ -93,7 +93,7 @@ Section props.
     iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".    
   Qed.
 
-  Definition VMProp_holds (id : vmid) : iProp Σ := ∃ P q, ▷ P ∗ VMProp id P q.
+  Definition VMProp_holds (id : vmid) (q : frac) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P q.
 
 End props.
 
@@ -111,10 +111,10 @@ Definition sswp_def `{!irisG M Σ} (id : vmid) :
   (if terminated m1 then |={E}=> Φ (false, m1) else
      ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
-         (∃ P q, VMPropAuth id P q) -∗
+         (∃ P, VMPropAuth id P) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         (∃ P q, VMPropAuth id P q) ∗ state_interp n σ2 ∗
-         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+         (∃ P, VMPropAuth id P) ∗ state_interp n σ2 ∗
+         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid (1/2)%Qp) ∗
          Φ (negb (scheduled σ2 id) && negb (terminated m2), m2))%I.
 
 Definition sswp_aux : seal (@sswp_def). Proof. by eexists. Qed.
@@ -131,12 +131,12 @@ Definition parwp_pre `{!irisG M Σ} (id : vmid)
     ⌜terminated m1 = false⌝ ∧
     ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
       ∀ m2 σ2,
-        (∃ P q, VMPropAuth id P q) -∗
+        (∃ P, VMPropAuth id P) -∗
         ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-        (∃ P q, VMPropAuth id P q) ∗
-        ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+        (∃ P, VMPropAuth id P) ∗
+        ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid (1/2)%Qp) ∗
         state_interp n σ2 ∗
-        ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ parwp E m2 Φ))%I.
+        ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id (1/2)%Qp) -∗ parwp E m2 Φ))%I.
 
 Local Instance parwp_pre_contractive `{!irisG M Σ} id : Contractive (parwp_pre id).
 Proof.
@@ -158,12 +158,12 @@ Definition wp_pre `{!irisG M Σ} (id : vmid)
   (if terminated m1 then |={E}=> Φ m1 else
      ∀ n σ1, ⌜scheduled σ1 id⌝ -∗ state_interp n σ1 ={E,∅}=∗ ⌜reducible m1 σ1⌝ ∗
        ∀ m2 σ2,
-         (∃ P q, VMPropAuth id P q) -∗
+         (∃ P, VMPropAuth id P) -∗
          ⌜prim_step m1 σ1 m2 σ2⌝ ={∅}=∗ ▷ |={∅,E}=>
-         (∃ P q, VMPropAuth id P q) ∗
-         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+         (∃ P, VMPropAuth id P) ∗
+         ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid (1/2)%Qp) ∗
          state_interp n σ2 ∗
-         ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id) -∗ wp E m2 Φ))%I.
+         ((if scheduled σ2 id || terminated m2 then True else VMProp_holds id (1/2)%Qp) -∗ wp E m2 Φ))%I.
 
 Local Instance wp_pre_contractive `{!irisG M Σ} id : Contractive (wp_pre id).
 Proof.
@@ -334,7 +334,7 @@ Proof. rewrite parwp_eq. apply (fixpoint_unfold (parwp_pre id)). Qed.
 
 Lemma wp_sswp id E m Φ :
   WP m @ id; E {{ Φ }} ⊣⊢
-  SSWP m @ id; E {{bm, (if bm.1 then VMProp_holds id else True) -∗ WP bm.2 @ id; E {{ Φ }} }}.
+  SSWP m @ id; E {{bm, (if bm.1 then VMProp_holds id (1/2)%Qp else True) -∗ WP bm.2 @ id; E {{ Φ }} }}.
 Proof.
   rewrite wp_unfold sswp_eq /wp_pre /sswp_def.
   destruct (terminated m) eqn:Hm; simpl.
@@ -412,7 +412,7 @@ Proof.
 Qed.
 
 Lemma parwp_sswp id E m Φ :
-  SSWP m @ id; E {{bm, (if bm.1 then VMProp_holds id else True) -∗ PARWP bm.2 @ id; E {{ Φ }} }} ⊢
+  SSWP m @ id; E {{bm, (if bm.1 then VMProp_holds id (1/2)%Qp else True) -∗ PARWP bm.2 @ id; E {{ Φ }} }} ⊢
   PARWP m @ id; E {{ Φ }}.
 Proof.
   rewrite sswp_eq parwp_unfold /sswp_def /parwp_pre.

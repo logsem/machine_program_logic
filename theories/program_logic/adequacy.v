@@ -49,9 +49,9 @@ Implicit Types Φ : mode M → iProp Σ.
 Implicit Types Φs : list (mode M → iProp Σ).
 
 Definition wpvm σ id m Φ : iProp Σ :=
-  ((∃ P q, VMPropAuth id P q) ∗
+  ((∃ P, VMPropAuth id P) ∗
    if terminated m then Φ m else
-     ((if scheduled σ id then True else VMProp_holds id) -∗ WP m @ id; ⊤ {{ Φ }}))%I.
+     ((if scheduled σ id then True else VMProp_holds id (1/2)%Qp) -∗ WP m @ id; ⊤ {{ Φ }}))%I.
 
 Notation wpvms_convid f σ t Φs := ([∗ list] id ↦ m;Φ ∈ t;Φs, wpvm σ (f id) m Φ)%I.
 
@@ -62,7 +62,7 @@ Lemma wp_step n id m1 σ1 m2 σ2 Φ :
   prim_step m1 σ1 m2 σ2 →
   state_interp n σ1 -∗ wpvm σ1 id m1 Φ
     ={⊤,∅}=∗ |={∅}▷=> |={∅,⊤}=>
-    ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid) ∗
+    ([∗ list] vmid ∈ just_scheduled_vms n σ1 σ2, VMProp_holds vmid (1/2)%Qp) ∗
     state_interp n σ2 ∗ wpvm σ2 id m2 Φ.
 Proof.
   iIntros (? ?) "Hσ [HPA H]".
@@ -81,7 +81,7 @@ Qed.
 
 Lemma wpvm_step_by_other id m σ1 σ2 Φ :
   wpvm σ1 id m Φ -∗
-  (if just_scheduled σ1 σ2 id then VMProp_holds id else emp) -∗
+  (if just_scheduled σ1 σ2 id then VMProp_holds id (1/2)%Qp else emp) -∗
   wpvm σ2 id m Φ.
 Proof.
   rewrite /wpvm.
@@ -97,7 +97,7 @@ Qed.
 
 Lemma wpvms_step_by_other f ms σ1 σ2 Φs :
   wpvms_convid f σ1 ms Φs -∗
-  ([∗ list] id ↦ _ ∈ ms, (if just_scheduled σ1 σ2 (f id) then VMProp_holds (f id) else emp)) -∗
+  ([∗ list] id ↦ _ ∈ ms, (if just_scheduled σ1 σ2 (f id) then VMProp_holds (f id) (1/2)%Qp else emp)) -∗
   wpvms_convid f σ2 ms Φs.
 Proof.
   iInduction ms as [|vm ms] "IH" forall (f Φs).
@@ -241,14 +241,14 @@ Proof. solve_inG. Qed.
 
 Lemma allocated_props `{!irisPreGS Σ} n (N : gmap nat gname) (Ps : list (iProp Σ)) γ :
   let VMProp γNN id P :=
-      (∃ q (γvmn : gname) (γ : gnameO),
+      (∃ (γvmn : gname) (γ : gnameO),
         own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)%I
+            ∗ own γvmn (◯ (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)%I
   in
   let VMPropAuth γNN id P :=
-      (∃ q (γvmn : gname) (γ : gnameO),
+      (∃ (γvmn : gname) (γ : gnameO),
         own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)%I
+            ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)%I
   in
   own γ (● (to_agree <$> N : gmapUR nat (agreeR gnameO))) -∗
   ⌜∀ k, k ∈ dom (gset nat) N ↔ k < n⌝ ==∗
@@ -282,7 +282,7 @@ Proof.
     rewrite /= !Nat.add_0_r.
     setoid_rewrite <- Nat.add_succ_comm.
     iSplitR "HγPeF HPsF"; [iFrame "HPs"|iFrame "HPsF"];
-      iExists _, _, _; iFrame; iFrame "#".
+      iExists _, _; iFrame; iFrame "#".
 Qed.
 
 (** Iris's generic adequacy result *)
@@ -297,11 +297,11 @@ Theorem wp_strong_adequacy Σ M `{!irisPreGS Σ} ms1 σ1 n ms2 σ2 φ :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms1⌝ ∗
        stateI (length ms1) σ1 ∗
-       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
+       (([∗ list] id ↦ P ∈ Ps, VMProp id P 1) -∗
            [∗ list] id ↦ m;Φ ∈ ms1;Φs,
              if terminated m then
                 Φ m
-              else (if (scheduled σ1 id) then True else VMProp_holds id) -∗
+              else (if (scheduled σ1 id) then True else VMProp_holds id (1/2)%Qp) -∗
               WP m @ id; ⊤ {{ Φ }}) ∗
        ( (* If this is a stuck-free triple (i.e. [s = NotStuck]), then all
          threads in [t2] are not stuck *)
@@ -333,13 +333,13 @@ Proof.
   iSpecialize ("Hwp" with "HPs").
   set (IG := IrisG _ _ Hinv _ _ _ name_map_name stateI).
   iDestruct (big_sepL2_length with "Hwp") as %HΦs.
-  iAssert ([∗ list] id↦m;_ ∈ ms1;Φs, ∃ P q, VMPropAuth id P q)%I with "[HPsF]" as "HPsF".
+  iAssert ([∗ list] id↦m;_ ∈ ms1;Φs, ∃ P, VMPropAuth id P)%I with "[HPsF]" as "HPsF".
   { clear -Ps Hlen Φs HΦs.
     iStopProof.
-    change (([∗ list] id↦P ∈ Ps, ∃ q (γvmn : gname) (γ : gnameO),
+    change (([∗ list] id↦P ∈ Ps, ∃ (γvmn : gname) (γ : gnameO),
                          own name_map_name (◯ {[0 + id := to_agree γvmn]})
-                         ∗ own γvmn (● (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P)
-              -∗ [∗ list] id↦_;_ ∈ ms1;Φs, ∃ (P : iProp Σ) q, VMPropAuth (0 + id) P q).
+                         ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)
+              -∗ [∗ list] id↦_;_ ∈ ms1;Φs, ∃ (P : iProp Σ), VMPropAuth (0 + id) P).
     generalize 0 as k.
     revert Ps Hlen Φs HΦs.
     induction ms1 as [|m ms1 IHms1]; iIntros (Ps Hlen Φs HΦs k) "HPsF".
@@ -427,11 +427,11 @@ Corollary wp_adequacy Σ M `{!irisPreGS Σ} ms σ φs :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms⌝ ∗
        stateI (length ms) σ ∗
-       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
+       (([∗ list] id ↦ P ∈ Ps, VMProp id P 1) -∗
            [∗ list] id ↦ m;Φ ∈ ms;φs,
              if terminated m then
                 ⌜Φ m⌝
-              else (if (scheduled σ id) then True else VMProp_holds id) -∗
+              else (if (scheduled σ id) then True else VMProp_holds id (1/2)%Qp) -∗
               WP m @ id; ⊤ {{v, ⌜Φ v⌝ }})) →
   adequate ms σ ((λ φ, λ v _, φ v)<$> φs).
 Proof.
@@ -482,11 +482,11 @@ Corollary wp_invariance Σ M `{!irisPreGS Σ} ms1 σ1 ms2 σ2 φ :
          |={⊤}=> ∃ (Ps : list (iProp Σ)),
        ⌜length Ps = length ms1⌝ ∗
        stateI (length ms1) σ1 ∗
-       (([∗ list] id ↦ P ∈ Ps, ∃ q, VMProp id P q) -∗
+       (([∗ list] id ↦ P ∈ Ps, VMProp id P 1) -∗
            [∗ list] id ↦ m ∈ ms1,
              if terminated m then
                 True
-              else (if (scheduled σ1 id) then True else VMProp_holds id) -∗
+              else (if (scheduled σ1 id) then True else VMProp_holds id (1/2)%Qp) -∗
               WP m @ id; ⊤ {{_, True }}) ∗
        (stateI (length ms2) σ2 -∗ ∃ E, |={⊤,E}=> ⌜φ⌝)) →
   rtc step (ms1, σ1) (ms2, σ2) →
