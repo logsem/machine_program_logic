@@ -117,6 +117,34 @@ Section props.
 
   Definition VMProp_holds (id : vmid) (q : frac) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P q.
 
+  Lemma VMProp_holds_agree (id : vmid) (Q : iProp Σ) : VMProp_holds id (1/2)%Qp ∗ VMProp id Q (1/2)%Qp -∗
+                                                       ▷ Q ∗ VMProp id Q 1%Qp.
+  Proof.
+    iIntros "([%Q' [Q'p P1]] & P2)".
+    iDestruct "P1" as (γvmn1 γ1) "(Hvmn1 & Hγ1 & #HQ)".
+    iDestruct "P2" as (γvmn2 γ2) "(Hvmn2 & Hγ2 & #HQ')".
+    iDestruct (own_valid_2 with "Hvmn1 Hvmn2") as %Hvalid%auth_frag_valid_1.
+    specialize (Hvalid id).
+    rewrite lookup_op !lookup_singleton -Some_op in Hvalid.
+    apply to_agree_op_inv, leibniz_equiv in Hvalid as <-.
+    iCombine "Hγ1 Hγ2" as "Hγ".
+    iDestruct (own_valid with "Hγ") as %authv.
+    setoid_rewrite auth_frag_valid in authv.
+    setoid_rewrite Some_valid in authv.
+    apply frac_agree_op_valid in authv.
+    destruct authv as [_ γEq].
+    iEval (rewrite γEq) in "Hγ".
+    iEval (rewrite γEq) in "HQ".
+    rewrite <-frac_agree_op.
+    rewrite Qp_div_2.
+    iDestruct (saved_prop_agree with "HQ HQ'") as "HQQ'Eq".
+    iRewrite (later_equivI_prop_2 with "HQQ'Eq") in "Q'p".
+    iFrame "Q'p".
+    iExists γvmn1, γ2.
+    iFrame.
+    iExact "HQ'".
+  Qed.
+
 End props.
 
 Definition just_scheduled {M} (σ1 σ2 : state M) (id : vmid) : bool :=
