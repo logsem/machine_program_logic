@@ -1,6 +1,7 @@
 From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import wsat invariants saved_prop.
-From iris.algebra Require Import auth excl gmap frac_agree.
+From iris.algebra Require Import auth excl gmap.
+From iris.algebra Require Import dfrac_agree.
 From machine_program_logic.program_logic Require Export weakestpre.
 Import uPred.
 
@@ -228,12 +229,12 @@ End adequacy.
 Class irisPreGS (Σ : gFunctors) := IrisPreG {
   iris_invPreGS :> invGpreS Σ;
   irisG_saved_prop :> savedPropG Σ;
-  irisG_prop_name :> inG Σ (authUR (optionUR (frac_agreeR gnameO)));
+  irisG_prop_name :> inG Σ (authUR (optionUR (dfrac_agreeR gnameO)));
   irisG_name_map :> inG Σ (authUR (gmapUR nat (agreeR gnameO)));
 }.
 
 Definition irisΣ :=
-  #[invΣ; savedPropΣ; GFunctor (authUR (optionUR (frac_agreeR gnameO)));
+  #[invΣ; savedPropΣ; GFunctor (authUR (optionUR (dfrac_agreeR gnameO)));
     GFunctor (authUR (gmapUR nat (agreeR gnameO)))].
 
 Global Instance iris_subG Σ : subG irisΣ Σ → irisPreGS Σ.

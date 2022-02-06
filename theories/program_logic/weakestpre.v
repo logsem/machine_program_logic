@@ -1,12 +1,13 @@
 From iris.proofmode Require Import base tactics classes.
-From iris.algebra Require Import cmra excl auth gmap agree frac_agree.
+From iris.algebra Require Import cmra excl auth gmap agree.
+From iris.algebra.lib Require Import dfrac_agree.
 From iris.base_logic.lib Require Export fancy_updates saved_prop.
 From machine_program_logic.program_logic Require Export machine.
 
 Class irisG (M : machine) (Σ : gFunctors) := IrisG {
   iris_invG :> invGS Σ;
   irisG_saved_prop :> savedPropG Σ;
-  irisG_prop_name :> inG Σ (authUR (optionUR (frac_agreeR gnameO)));
+  irisG_prop_name :> inG Σ (authUR (optionUR (dfrac_agreeR gnameO)));
   irisG_name_map :> inG Σ (authUR (gmapUR nat (agreeR gnameO)));
   irisG_name_map_name : gname;
   (** The state interpretation is an invariant that should hold in between each
@@ -93,11 +94,13 @@ Section props.
     iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".    
   Qed.
 
-  Lemma VMProp_split id Q q : VMProp id Q q -∗ (VMProp id Q (q/2) ∗ VMProp id Q (q/2)).
+  Lemma VMProp_split id Q q : VMProp id Q q ⊣⊢ (VMProp id Q (q/2) ∗ VMProp id Q (q/2)).
   Proof.
-    iIntros "H".
     rewrite <-(Qp_div_2 q).
     rewrite /VMProp.
+    iSplit.
+    {
+    iIntros "H".
     iDestruct "H" as "(%γvmn & %γ & Hmapown & Hnameown & Hsavedprop)".
     rewrite frac_agree_op.
     rewrite Some_op.
@@ -113,6 +116,52 @@ Section props.
     - iExists γvmn, γ.
       rewrite (Qp_div_2 q).
       iFrame "Hnameown2 Hsavedprop Hmapown".
+    }
+    {
+      iIntros "[H1 H2]".
+      iDestruct "H1" as "(%γvmn1 & %γ1 & Hmapown1 & Hnameown1 & Hsavedprop1)".
+      iDestruct "H2" as "(%γvmn2 & %γ2 & Hmapown2 & Hnameown2 & Hsavedprop2)".
+      iCombine "Hmapown1 Hmapown2" as "Hmapown".
+      iDestruct (own_valid with "Hmapown") as %Hmapvalid.
+      rewrite auth_frag_valid in Hmapvalid.
+      rewrite singleton_valid in Hmapvalid.
+      rewrite to_agree_op_valid_L in Hmapvalid.
+      subst γvmn2.
+      iCombine "Hnameown1 Hnameown2" as "Hnameown".
+      iDestruct (own_valid with "Hnameown") as %Hnamevalid.
+      rewrite auth_frag_valid in Hnamevalid.
+      rewrite Some_valid in Hnamevalid.
+      rewrite dfrac_agree_op_valid_L in Hnamevalid.
+      destruct Hnamevalid as [_ ->].
+      rewrite -frac_agree_op.
+      rewrite !(Qp_div_2 q).
+      rewrite agree_idemp.
+      iExists γvmn1, γ2.
+      iFrame.
+    }
+  Qed.
+
+  Lemma VMProp_invalid id Q Q' q : VMProp id Q 1 ∗ VMProp id Q' q ⊢ False.
+  Proof.
+    iIntros "[H1 H2]".
+    iDestruct "H1" as "(%γvmn1 & %γ1 & Hmapown1 & Hnameown1 & Hsavedprop1)".
+    iDestruct "H2" as "(%γvmn2 & %γ2 & Hmapown2 & Hnameown2 & Hsavedprop2)".
+    iCombine "Hmapown1 Hmapown2" as "Hmapown".
+    iDestruct (own_valid with "Hmapown") as %Hmapvalid.
+    rewrite auth_frag_valid in Hmapvalid.
+    rewrite singleton_valid in Hmapvalid.
+    rewrite to_agree_op_valid_L in Hmapvalid.
+    subst γvmn2.
+    iCombine "Hnameown1 Hnameown2" as "Hnameown".
+    iDestruct (own_valid with "Hnameown") as %Hnamevalid.
+    rewrite auth_frag_valid in Hnamevalid.
+    rewrite Some_valid in Hnamevalid.
+    rewrite dfrac_agree_op_valid_L in Hnamevalid.
+    destruct Hnamevalid as [Hvalid _].
+    rewrite dfrac_op_own in Hvalid.
+    rewrite dfrac_valid_own in Hvalid.
+    exfalso.
+    apply (Qp_not_add_le_l _ _ Hvalid).
   Qed.
 
   Definition VMProp_holds (id : vmid) (q : frac) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P q.
