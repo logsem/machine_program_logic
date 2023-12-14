@@ -181,7 +181,8 @@ Proof.
   rewrite wp_unfold /wp_pre /not_stuck. iIntros (?) "Hσ H".
   destruct (terminated m) eqn:?; first by eauto.
   iSpecialize ("H" $! _ σ with "[//] Hσ"). rewrite sep_elim_l.
-  iMod (fupd_plain_mask with "H") as %?; eauto.
+  iMod (fupd_plain_mask with "H") as "%G".
+  iModIntro; iPureIntro; right; apply G.
 Qed.
 
 Lemma wpvms_strong_adequacy k n Φs ms1 ms2 σ1 σ2 :
@@ -243,18 +244,18 @@ Proof. solve_inG. Qed.
 Lemma allocated_props `{!irisPreGS Σ} n (N : gmap nat gname) (Ps : list (iProp Σ)) γ :
   let VMProp γNN id P :=
       (∃ (γvmn : gname) (γ : gnameO),
-        own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (◯ (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)%I
+        own γNN (◯ ({[id := (to_agree γvmn)]}))
+        ∗ own γvmn (◯ (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ DfracDiscarded P)%I
   in
   let VMPropAuth γNN id P :=
       (∃ (γvmn : gname) (γ : gnameO),
-        own γNN (◯ {[id := to_agree γvmn]})
-            ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)%I
+        own γNN (◯ ({[id := to_agree γvmn]}))
+        ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ DfracDiscarded P)%I
   in
   own γ (● (to_agree <$> N : gmapUR nat (agreeR gnameO))) -∗
-  ⌜∀ k, k ∈ dom (gset nat) N ↔ k < n⌝ ==∗
+  ⌜∀ k, k ∈ dom N ↔ k < n⌝ ==∗
     ∃ (M : gmap nat gname),
-      ⌜∀ k, k ∈ dom (gset nat) M ↔ k < n + length Ps ⌝ ∗
+      ⌜∀ k, k ∈ dom M ↔ k < n + length Ps ⌝ ∗
       own γ (● (to_agree <$> M : gmapUR nat (agreeR gnameO))) ∗
       ([∗ list] id↦P ∈ Ps, VMProp γ (n + id) P) ∗
       ([∗ list] id↦P ∈ Ps, VMPropAuth γ (n + id) P).
@@ -265,7 +266,7 @@ Proof.
     iSplit; last done.
     iPureIntro.
     intros ?; rewrite HN; lia.
-  - iMod (saved_prop_alloc P) as (γP) "#HP".
+  - iMod (saved_prop_alloc P) as "(%γP & #HP)"; first done.
     iMod (own_alloc ((● (Some (to_frac_agree 1%Qp γP))) ⋅ (◯ (Some (to_frac_agree 1%Qp γP))))) as (γPe) "[HγPeF HγPe]".
     { apply auth_both_valid; done. }
     iMod (own_update
@@ -288,7 +289,7 @@ Qed.
 
 (** Iris's generic adequacy result *)
 Theorem wp_strong_adequacy Σ M `{!irisPreGS Σ} ms1 σ1 n ms2 σ2 φ :
-  (∀ `{Hinv : !invGS Σ},
+  (∀ `{Hinv : !invGS_gen HasNoLc Σ},
       ⊢ |={⊤}=>
          ∀ name_map_name,
          ∃
@@ -320,7 +321,7 @@ Theorem wp_strong_adequacy Σ M `{!irisPreGS Σ} ms1 σ1 n ms2 σ2 φ :
   φ.
 Proof.
   intros Hwp ?.
-  apply (step_fupdN_soundness _ (S n))=> Hinv.
+  apply (step_fupdN_soundness_no_lc _ (S n) 0)=> Hinv.
   iMod Hwp as "Hwp".
   iMod (own_alloc (● ∅)) as (name_map_name) "HNNF".
   { apply auth_auth_valid; done. }
@@ -339,7 +340,7 @@ Proof.
     iStopProof.
     change (([∗ list] id↦P ∈ Ps, ∃ (γvmn : gname) (γ : gnameO),
                          own name_map_name (◯ {[0 + id := to_agree γvmn]})
-                         ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P)
+                         ∗ own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ DfracDiscarded P)
               -∗ [∗ list] id↦_;_ ∈ ms1;Φs, ∃ (P : iProp Σ), VMPropAuth (0 + id) P).
     generalize 0 as k.
     revert Ps Hlen Φs HΦs.
@@ -359,7 +360,9 @@ Proof.
   iMod (@wpvms_strong_adequacy _ _ IG _ with "Hσ Hwp")
     as "H"; [done|done|].
   iAssert (|={∅}▷=>^(S n) |={∅}=> ⌜φ⌝)%I with "[-]" as "H"; last first.
-  { by iApply step_fupdN_S_fupd. }
+  { iIntros "_".
+    by iApply step_fupdN_S_fupd.
+  }
   iApply (step_fupdN_wand with "H").
   iModIntro; iNext; iModIntro.
   iMod 1 as (?) "(Hσ & Ht2) /=".
@@ -420,7 +423,7 @@ Qed.
 
 Corollary wp_adequacy Σ M `{!irisPreGS Σ} ms σ φs :
   length ms = length φs →
-  (∀ `{Hinv : !invGS Σ},
+  (∀ `{Hinv : !invGS_gen HasNoLc Σ},
      ⊢ |={⊤}=> ∀ name_map_name,
          ∃
          (stateI : nat → state M → iProp Σ),
@@ -475,7 +478,7 @@ Proof.
 Qed.
 
 Corollary wp_invariance Σ M `{!irisPreGS Σ} ms1 σ1 ms2 σ2 φ :
-  (∀ `{Hinv : !invGS Σ},
+  (∀ `{Hinv : !invGS_gen HasNoLc Σ},
      ⊢ |={⊤}=> ∀ name_map_name,
          ∃
          (stateI : nat → state M → iProp Σ),

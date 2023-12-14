@@ -5,7 +5,7 @@ From iris.base_logic.lib Require Export fancy_updates saved_prop.
 From machine_program_logic.program_logic Require Export machine.
 
 Class irisG (M : machine) (Σ : gFunctors) := IrisG {
-  iris_invG :> invGS Σ;
+  iris_invG :> (invGS_gen HasNoLc Σ);
   irisG_saved_prop :> savedPropG Σ;
   irisG_prop_name :> inG Σ (authUR (optionUR (dfrac_agreeR gnameO)));
   irisG_name_map :> inG Σ (authUR (gmapUR nat (agreeR gnameO)));
@@ -21,11 +21,11 @@ Section props.
 
   Definition VMProp (id : vmid) (P : iProp Σ) (q : frac) : iProp Σ :=
     ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
-              own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ P.
+              own γvmn (◯ (Some (to_frac_agree q γ))) ∗ saved_prop_own γ DfracDiscarded P.
 
   Definition VMPropAuth (id : vmid) (P : iProp Σ) : iProp Σ :=
     ∃ γvmn γ, own irisG_name_map_name (◯ {[ id := to_agree γvmn]}) ∗
-              own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ P.
+              own γvmn (● (Some (to_frac_agree 1 γ))) ∗ saved_prop_own γ DfracDiscarded P.
 
   Lemma VMProp_agree id P Q q' : VMPropAuth id P -∗ VMProp id Q q' -∗ ▷ (P ≡ Q).
   Proof.
@@ -49,7 +49,7 @@ Section props.
     - simplify_eq.
       inversion Heq3 as [Heq4 Heq5].
       simpl in *.
-      apply to_agree_inj in Heq5.      
+      apply to_agree_inj in Heq5.
       simplify_eq.
       iApply saved_prop_agree; done.
     - apply frac_agree_included in Hincl.
@@ -83,20 +83,20 @@ Section props.
     inversion Heq1 as [Heq1'].
     rewrite <-Heq1' in Heq3.
     inversion Heq2 as [Heq2'].
-    rewrite <-Heq2' in Heq3.    
-    iMod (saved_prop_alloc R) as (γ) "#Hγ".
+    rewrite <-Heq2' in Heq3.
+    iMod (saved_prop_alloc R) as "(%γ & #Hγ)"; first done.
     iMod (own_update_2 _ _ _ (● (Some (to_frac_agree 1 γ)) ⋅ ◯ (Some (to_frac_agree 1 γ))) with "Hγ1 Hγ2") as "[Hγ1 Hγ2]".
     {
       apply auth_update, option_local_update.
       apply exclusive_local_update.
       done.
     }
-    iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".    
+    iModIntro; iSplitL "Hγ1"; iExists _, _; iFrame; iFrame "#".
   Qed.
 
   Lemma VMProp_split id Q q : VMProp id Q q ⊣⊢ (VMProp id Q (q/2) ∗ VMProp id Q (q/2)).
   Proof.
-    rewrite <-(Qp_div_2 q).
+    rewrite <-(Qp.div_2 q).
     rewrite /VMProp.
     iSplit.
     {
@@ -111,10 +111,10 @@ Section props.
     iDestruct "Hnameown" as "[Hnameown1 Hnameown2]".
     iSplitL "Hnameown1".
     - iExists γvmn, γ.
-      rewrite (Qp_div_2 q).
+      rewrite (Qp.div_2 q).
       iFrame "Hnameown1 Hsavedprop Hmapown".
     - iExists γvmn, γ.
-      rewrite (Qp_div_2 q).
+      rewrite (Qp.div_2 q).
       iFrame "Hnameown2 Hsavedprop Hmapown".
     }
     {
@@ -134,7 +134,7 @@ Section props.
       rewrite dfrac_agree_op_valid_L in Hnamevalid.
       destruct Hnamevalid as [_ ->].
       rewrite -frac_agree_op.
-      rewrite !(Qp_div_2 q).
+      rewrite !(Qp.div_2 q).
       rewrite agree_idemp.
       iExists γvmn1, γ2.
       iFrame.
@@ -161,7 +161,7 @@ Section props.
     rewrite dfrac_op_own in Hvalid.
     rewrite dfrac_valid_own in Hvalid.
     exfalso.
-    apply (Qp_not_add_le_l _ _ Hvalid).
+    apply (Qp.not_add_le_l _ _ Hvalid).
   Qed.
 
   Definition VMProp_holds (id : vmid) (q : frac) : iProp Σ := ∃ P, ▷ P ∗ VMProp id P q.
@@ -185,7 +185,7 @@ Section props.
     iEval (rewrite γEq) in "Hγ".
     iEval (rewrite γEq) in "HQ".
     rewrite <-frac_agree_op.
-    rewrite Qp_div_2.
+    rewrite Qp.div_2.
     iDestruct (saved_prop_agree with "HQ HQ'") as "HQQ'Eq".
     iRewrite (later_equivI_prop_2 with "HQQ'Eq") in "Q'p".
     iFrame "Q'p".
